@@ -54,10 +54,20 @@ contract MerchantPunchCard {
      */
 
     /// @notice Get the last 10 purchased item IDs for a customer.
+    /// @dev Returns type(uint256).max for empty slots.
     function getPurchaseHistory(
         address customer
     ) external view returns (uint256[10] memory) {
-        return customerPurchaseHistory[customer];
+        uint256[10] memory history = customerPurchaseHistory[customer];
+        
+        // Replace 0 values with max uint256 to represent empty slots
+        for (uint256 i = 0; i < 10; i++) {
+            if (history[i] == 0) {
+                history[i] = type(uint256).max;
+            }
+        }
+        
+        return history;
     }
 
     /// @notice Get catalog items by their IDs.
