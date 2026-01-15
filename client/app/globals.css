@@ -22,15 +22,6 @@
   --gradient-end: #06b6d4;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1a0a2e;
-    --foreground: #f5f0ff;
-    --card-bg: #2d1b4e;
-    --card-shadow: rgba(255, 107, 157, 0.2);
-  }
-}
-
 * {
   box-sizing: border-box;
 }
@@ -45,12 +36,6 @@ body {
 /* Playful gradient background */
 .bg-playful {
   background: linear-gradient(135deg, var(--background) 0%, #fdf2f8 50%, #ede9fe 100%);
-}
-
-@media (prefers-color-scheme: dark) {
-  .bg-playful {
-    background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #1e1b4b 100%);
-  }
 }
 
 /* Stamp card styling */
@@ -107,14 +92,6 @@ body {
   background: #e5e7eb;
   color: #9ca3af;
   border: 2px dashed #d1d5db;
-}
-
-@media (prefers-color-scheme: dark) {
-  .stamp-empty {
-    background: #374151;
-    color: #6b7280;
-    border-color: #4b5563;
-  }
 }
 
 /* Button styles */
