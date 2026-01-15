@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { StampCard } from '@/app/components/StampCard';
 import { QRCodeModal } from '@/app/components/QRCodeModal';
 import { mockStampCards } from '@/app/lib/stampCards';
@@ -59,6 +60,14 @@ export default function Home() {
         isOpen={isQRModalOpen} 
         onClose={() => setIsQRModalOpen(false)} 
       />
+
+      {/* Merchant Dashboard Link */}
+      <Link href="/merchants">
+        <button className="fixed bottom-8 left-8 px-6 py-3 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:scale-105 transition-all">
+          <span>🏪</span>
+          <span className="font-semibold">Merchant</span>
+        </button>
+      </Link>
     </div>
   );
 }
