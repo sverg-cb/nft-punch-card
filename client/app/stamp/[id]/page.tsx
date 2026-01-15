@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { getStampCard, isCardComplete } from '@/app/lib/stampCards';
 import { QRCode } from '@/app/components/QRCode';
@@ -45,9 +46,17 @@ export default function StampPage({ params }: StampPageProps) {
       {/* Main Content */}
       <main className="px-6 pb-12">
         <div className="max-w-lg mx-auto">
-          {/* Card Image/Emoji Display */}
+          {/* Card Image Display */}
           <div className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-3xl p-8 mb-8 text-center bounce-in">
-            <div className="text-9xl mb-4">{card.image}</div>
+            <div className="w-40 h-40 mx-auto mb-4 rounded-3xl overflow-hidden shadow-xl">
+              <Image
+                src={card.image}
+                alt={card.name}
+                width={160}
+                height={160}
+                className="w-full h-full object-cover"
+              />
+            </div>
             <h1 className="text-3xl font-extrabold text-foreground mb-2">{card.name}</h1>
             <p className="text-lg text-gray-500">{card.merchantName}</p>
           </div>

@@ -1,7 +1,7 @@
 export interface StampCard {
   id: string;
   name: string;
-  image: string;
+  image: string; // Now an image URL instead of emoji
   description: string;
   currentStamps: number;
   totalStamps: number;
@@ -15,7 +15,7 @@ export const mockStampCards: StampCard[] = [
   {
     id: '1',
     name: 'Coffee Lover',
-    image: '☕',
+    image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop',
     description: 'Collect stamps for every coffee purchase',
     currentStamps: 7,
     totalStamps: 10,
@@ -26,7 +26,7 @@ export const mockStampCards: StampCard[] = [
   {
     id: '2',
     name: 'Burger Buddy',
-    image: '🍔',
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=400&fit=crop',
     description: 'Get a stamp with every burger meal',
     currentStamps: 5,
     totalStamps: 5,
@@ -37,7 +37,7 @@ export const mockStampCards: StampCard[] = [
   {
     id: '3',
     name: 'Pizza Party',
-    image: '🍕',
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
     description: 'Earn stamps on pizza orders over $15',
     currentStamps: 3,
     totalStamps: 8,
@@ -48,7 +48,7 @@ export const mockStampCards: StampCard[] = [
   {
     id: '4',
     name: 'Smoothie Star',
-    image: '🥤',
+    image: 'https://images.unsplash.com/photo-1505252585461-04db1eb84625?w=400&h=400&fit=crop',
     description: 'Stamp for every smoothie purchase',
     currentStamps: 6,
     totalStamps: 6,
@@ -59,7 +59,7 @@ export const mockStampCards: StampCard[] = [
   {
     id: '5',
     name: 'Taco Tuesday',
-    image: '🌮',
+    image: 'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=400&h=400&fit=crop',
     description: 'Collect stamps on taco orders',
     currentStamps: 2,
     totalStamps: 7,
@@ -70,7 +70,7 @@ export const mockStampCards: StampCard[] = [
   {
     id: '6',
     name: 'Donut Delight',
-    image: '🍩',
+    image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=400&h=400&fit=crop',
     description: 'Stamp for every dozen donuts',
     currentStamps: 4,
     totalStamps: 4,
@@ -87,4 +87,3 @@ export function getStampCard(id: string): StampCard | undefined {
 export function isCardComplete(card: StampCard): boolean {
   return card.currentStamps >= card.totalStamps;
 }
-
