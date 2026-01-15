@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getMerchant, getMerchantUsers, formatAddress } from '@/app/lib/merchants';
-import { QRScanner } from '@/app/components/QRScanner';
+import { getMerchant, getMerchantUsers } from '@/app/lib/merchants';
+import { QRCode } from '@/app/components/QRCode';
 import { 
   MERCHANT_PUNCH_CARD_ADDRESS, 
-  merchantPunchCardAbi, 
   generateRandomItemIds 
 } from '@/app/lib/contracts';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { 
   ConnectWallet,
   Wallet,
@@ -22,7 +22,7 @@ import {
   Name,
   Identity,
 } from '@coinbase/onchainkit/identity';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 export default function MerchantDetailPage() {
   const params = useParams();
@@ -30,51 +30,33 @@ export default function MerchantDetailPage() {
   const merchant = getMerchant(id);
   const users = getMerchantUsers(id);
   
-  const [stampCount, setStampCount] = useState(1);
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [pendingItemIds, setPendingItemIds] = useState<bigint[]>([]);
+  const [showQRCode, setShowQRCode] = useState(false);
 
+  // Get MiniKit context for Farcaster mini app info
+  const { context } = useMiniKit();
+  
   // Wallet connection
   const { isConnected } = useAccount();
-  
-  // Contract write hook
-  const { 
-    writeContract, 
-    data: txHash,
-    isPending: isWritePending,
-    error: writeError,
-    reset: resetWrite
-  } = useWriteContract();
 
-  // Wait for transaction confirmation
-  const { 
-    isLoading: isConfirming, 
-    isSuccess: isConfirmed,
-    error: confirmError
-  } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
-
-  // Handle transaction confirmation
-  useEffect(() => {
-    if (isConfirmed && txHash) {
-      setSuccessMessage(
-        `Purchase processed! ${pendingItemIds.length} item${pendingItemIds.length > 1 ? 's' : ''} recorded. ` +
-        `Items: [${pendingItemIds.map(id => id.toString()).join(', ')}]`
-      );
-      
-      // Reset after 5 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-        setCustomerAddress('');
-        setStampCount(1);
-        setPendingItemIds([]);
-        resetWrite();
-      }, 5000);
+  // Generate random item IDs for the purchase QR code
+  // Memoized so it stays consistent while the QR is displayed
+  const purchaseItemIds = useMemo(() => {
+    if (showQRCode) {
+      return generateRandomItemIds();
     }
-  }, [isConfirmed, txHash, pendingItemIds, resetWrite]);
+    return [];
+  }, [showQRCode]);
+
+  // Create the QR code value - JSON with purchase details
+  const qrCodeValue = useMemo(() => {
+    if (!showQRCode || purchaseItemIds.length === 0) return '';
+    return JSON.stringify({
+      action: 'processPurchase',
+      contract: MERCHANT_PUNCH_CARD_ADDRESS,
+      itemIds: purchaseItemIds.map(id => id.toString()),
+      merchantId: id,
+    });
+  }, [showQRCode, purchaseItemIds, id]);
 
   if (!merchant) {
     return (
@@ -90,36 +72,10 @@ export default function MerchantDetailPage() {
     );
   }
 
-  const handleScan = (scannedAddress: string) => {
-    setCustomerAddress(scannedAddress);
-    setIsScannerOpen(false);
-  };
-
-  const handleSubmit = async () => {
-    if (!customerAddress || !isConnected) {
-      return;
-    }
-    
-    // Generate random item IDs (1-2 items)
-    const itemIds = generateRandomItemIds();
-    setPendingItemIds(itemIds);
-    
-    // Call the smart contract
-    writeContract({
-      address: MERCHANT_PUNCH_CARD_ADDRESS,
-      abi: merchantPunchCardAbi,
-      functionName: 'processPurchase',
-      args: [itemIds],
-    });
-  };
-
   const totalUsers = users.length;
   const activeUsers = users.filter(u => !u.isRedeemed).length;
   const completedRewards = users.filter(u => u.isRedeemed).length;
   const totalStampsIssued = users.reduce((sum, u) => sum + u.currentStamps, 0);
-
-  const isProcessing = isWritePending || isConfirming;
-  const error = writeError || confirmError;
 
   return (
     <div className="min-h-screen bg-merchant">
@@ -166,6 +122,11 @@ export default function MerchantDetailPage() {
                 {merchant.name}
               </h1>
               <p className="text-gray-500">{merchant.description}</p>
+              {context?.user && (
+                <p className="text-sm text-primary mt-1">
+                  Logged in as @{context.user.username || `fid:${context.user.fid}`}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -194,124 +155,66 @@ export default function MerchantDetailPage() {
             </div>
           </div>
 
-          {/* Grant Stamps Section */}
+          {/* Generate Purchase QR Code Section */}
           <div className="merchant-card p-6">
             <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
               <span>🎟️</span> Process Purchase
             </h2>
 
-            {/* Wallet not connected warning */}
-            {!isConnected && (
-              <div className="mb-4 p-4 bg-amber-100 border border-amber-300 rounded-xl text-amber-700 flex items-center gap-2">
-                <span className="text-xl">⚠️</span>
-                Connect your wallet to process purchases on-chain
+            <p className="text-gray-600 mb-4">
+              Generate a QR code for the customer to scan. They will sign the transaction to record their purchase.
+            </p>
+
+            {!showQRCode ? (
+              <button
+                onClick={() => setShowQRCode(true)}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                <span>✨</span>
+                Generate Purchase QR Code
+              </button>
+            ) : (
+              <div className="text-center">
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-blue-700 font-medium mb-2">
+                    Customer scans this QR code to record their purchase
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    Items: [{purchaseItemIds.map(id => id.toString()).join(', ')}]
+                  </p>
+                </div>
+                
+                <div className="flex justify-center mb-4">
+                  <QRCode 
+                    value={qrCodeValue}
+                    title="Customer: Scan to Record Purchase"
+                    size={250}
+                  />
+                </div>
+
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => setShowQRCode(false)}
+                    className="px-6 py-3 rounded-xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-colors"
+                  >
+                    Done
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowQRCode(false);
+                      setTimeout(() => setShowQRCode(true), 100);
+                    }}
+                    className="px-6 py-3 rounded-xl bg-secondary text-white font-semibold hover:bg-secondary/90 transition-colors"
+                  >
+                    🔄 New Items
+                  </button>
+                </div>
               </div>
             )}
             
-            {successMessage && (
-              <div className="mb-4 p-4 bg-green-100 border border-green-300 rounded-xl text-green-700 flex items-center gap-2">
-                <span className="text-xl">✅</span>
-                {successMessage}
-              </div>
-            )}
-
-            {error && (
-              <div className="mb-4 p-4 bg-red-100 border border-red-300 rounded-xl text-red-700 flex items-center gap-2">
-                <span className="text-xl">❌</span>
-                <span className="break-all">
-                  {error instanceof Error ? error.message : 'Transaction failed'}
-                </span>
-              </div>
-            )}
-
-            {isProcessing && (
-              <div className="mb-4 p-4 bg-blue-100 border border-blue-300 rounded-xl text-blue-700 flex items-center gap-2">
-                <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full" />
-                {isWritePending ? 'Confirm in your wallet...' : 'Processing transaction...'}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {/* Stamp Count Input */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-2">
-                  Number of Stamps to Grant
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setStampCount(Math.max(1, stampCount - 1))}
-                    className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    value={stampCount}
-                    onChange={(e) => setStampCount(Math.max(1, Math.min(merchant.totalStampsRequired, parseInt(e.target.value) || 1)))}
-                    className="w-20 h-12 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 bg-white text-foreground focus:border-primary focus:outline-none"
-                    min="1"
-                    max={merchant.totalStampsRequired}
-                  />
-                  <button
-                    onClick={() => setStampCount(Math.min(merchant.totalStampsRequired, stampCount + 1))}
-                    className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
-                  >
-                    +
-                  </button>
-                  <span className="text-sm text-gray-500 ml-2">
-                    (max: {merchant.totalStampsRequired})
-                  </span>
-                </div>
-              </div>
-
-              {/* Customer Address */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-2">
-                  Customer Wallet Address
-                </label>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    placeholder="0x... or scan QR code"
-                    className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-foreground focus:border-primary focus:outline-none transition-colors"
-                  />
-                  <button
-                    onClick={() => setIsScannerOpen(true)}
-                    className="px-4 py-3 rounded-xl bg-secondary text-white font-semibold hover:bg-secondary/90 transition-colors flex items-center gap-2"
-                  >
-                    <span>📷</span>
-                    Scan
-                  </button>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                onClick={handleSubmit}
-                disabled={!customerAddress || !isConnected || isProcessing}
-                className={`btn-primary w-full flex items-center justify-center gap-2 ${
-                  (!customerAddress || !isConnected || isProcessing) ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <span>✨</span>
-                    Process Purchase (1-2 random items)
-                  </>
-                )}
-              </button>
-              
-              <p className="text-xs text-gray-500 text-center">
-                This will call processPurchase on the smart contract with 1-2 random item IDs
-              </p>
-            </div>
+            <p className="text-xs text-gray-500 text-center mt-4">
+              The customer will call processPurchase on contract {MERCHANT_PUNCH_CARD_ADDRESS.slice(0, 10)}...
+            </p>
           </div>
 
           {/* Customer Analytics */}
@@ -323,7 +226,7 @@ export default function MerchantDetailPage() {
             {users.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <div className="text-4xl mb-2">👥</div>
-                <p>No customers yet. Start granting stamps!</p>
+                <p>No customers yet. Start processing purchases!</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -424,14 +327,6 @@ export default function MerchantDetailPage() {
           </div>
         </div>
       </main>
-
-      {/* QR Scanner Modal */}
-      {isScannerOpen && (
-        <QRScanner 
-          onScan={handleScan} 
-          onClose={() => setIsScannerOpen(false)} 
-        />
-      )}
     </div>
   );
 }

@@ -6,9 +6,27 @@ import { Html5Qrcode } from 'html5-qrcode';
 interface QRScannerProps {
   onScan: (data: string) => void;
   onClose: () => void;
+  /** Title shown in the scanner modal */
+  title?: string;
+  /** Placeholder for manual input */
+  placeholder?: string;
+  /** Label for manual input field */
+  inputLabel?: string;
+  /** Description shown at the bottom */
+  description?: string;
+  /** Whether to validate as Ethereum address (default: false) */
+  validateAddress?: boolean;
 }
 
-export function QRScanner({ onScan, onClose }: QRScannerProps) {
+export function QRScanner({ 
+  onScan, 
+  onClose, 
+  title = '📸 Scan QR Code',
+  placeholder = 'Paste data here...',
+  inputLabel = 'Manual Input',
+  description = 'Scan a QR code or enter data manually',
+  validateAddress = false,
+}: QRScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [manualInput, setManualInput] = useState('');
   const [isScanning, setIsScanning] = useState(true);
@@ -36,24 +54,29 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
     onClose();
   }, [stopScanner, onClose]);
 
-  const handleScanSuccess = useCallback(async (decodedText: string) => {
-    // Extract address from QR code
-    // Could be raw address or ethereum: URI
-    let address = decodedText;
-    
-    // Handle ethereum: URI format
-    if (decodedText.startsWith('ethereum:')) {
-      address = decodedText.replace('ethereum:', '').split('@')[0].split('?')[0];
-    }
+  const validateAndSubmit = useCallback(async (data: string) => {
+    if (validateAddress) {
+      // Extract address from QR code - could be raw address or ethereum: URI
+      let address = data;
+      
+      // Handle ethereum: URI format
+      if (data.startsWith('ethereum:')) {
+        address = data.replace('ethereum:', '').split('@')[0].split('?')[0];
+      }
 
-    // Validate Ethereum address
-    if (address.startsWith('0x') && address.length === 42) {
-      await stopScanner();
-      onScan(address);
+      // Validate Ethereum address
+      if (address.startsWith('0x') && address.length === 42) {
+        await stopScanner();
+        onScan(address);
+      } else {
+        setError('Invalid QR code. Please scan a valid Ethereum address.');
+      }
     } else {
-      setError('Invalid QR code. Please scan a valid Ethereum address.');
+      // Accept any data
+      await stopScanner();
+      onScan(data);
     }
-  }, [stopScanner, onScan]);
+  }, [validateAddress, stopScanner, onScan]);
 
   useEffect(() => {
     let mounted = true;
@@ -82,7 +105,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           config,
           (decodedText) => {
             if (mounted) {
-              handleScanSuccess(decodedText);
+              validateAndSubmit(decodedText);
             }
           },
           () => {
@@ -97,7 +120,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         console.error('Scanner error:', err);
         if (mounted) {
           setScanStatus('error');
-          setError('Camera access denied or not available. Please enter address manually.');
+          setError('Camera access denied or not available. Please enter data manually.');
           setIsScanning(false);
         }
       }
@@ -109,31 +132,25 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
       mounted = false;
       stopScanner();
     };
-  }, [isScanning, handleScanSuccess, stopScanner]);
+  }, [isScanning, validateAndSubmit, stopScanner]);
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (manualInput.trim()) {
-      const address = manualInput.trim();
-      if (address.startsWith('0x') && address.length === 42) {
-        await stopScanner();
-        onScan(address);
-      } else {
-        setError('Please enter a valid Ethereum address (0x...)');
-      }
+      await validateAndSubmit(manualInput.trim());
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
       <div 
-        className="relative bg-white dark:bg-gray-800 rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl"
+        className="relative bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute -top-3 -right-3 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:scale-110 transition-all z-10"
+          className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:scale-110 transition-all z-10"
           aria-label="Close"
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -142,7 +159,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
         </button>
 
         <h3 className="text-xl font-bold text-foreground mb-4 text-center">
-          📸 Scan Customer QR Code
+          {title}
         </h3>
 
         {/* Camera View */}
@@ -190,16 +207,16 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
 
         {/* Divider */}
         <div className="flex items-center gap-4 my-4">
-          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          <div className="flex-1 h-px bg-gray-200" />
           <span className="text-sm text-gray-500">or enter manually</span>
-          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          <div className="flex-1 h-px bg-gray-200" />
         </div>
 
         {/* Manual Input */}
         <form onSubmit={handleManualSubmit} className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-              Customer Wallet Address
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              {inputLabel}
             </label>
             <input
               type="text"
@@ -208,8 +225,8 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
                 setManualInput(e.target.value);
                 setError(null);
               }}
-              placeholder="0x..."
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-foreground focus:border-primary focus:outline-none transition-colors"
+              placeholder={placeholder}
+              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-foreground focus:border-primary focus:outline-none transition-colors"
             />
           </div>
 
@@ -221,12 +238,12 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
             type="submit"
             className="btn-primary w-full"
           >
-            Confirm Address
+            Confirm
           </button>
         </form>
 
         <p className="text-xs text-gray-400 text-center mt-4">
-          Scan the QR code displayed on customer&apos;s phone or enter their wallet address
+          {description}
         </p>
       </div>
     </div>
