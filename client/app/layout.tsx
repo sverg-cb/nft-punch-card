@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-
+import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'Stamp Cards',
   description: 'Collect stamps and unlock rewards from your favorite places',
@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

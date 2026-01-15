@@ -10,8 +10,9 @@ export function Providers(props: { children: ReactNode }) {
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       chain={baseSepolia}
       config={{ appearance: { mode: 'auto' } }}
+      miniKit={{enabled: true, autoConnect: true}}
     >
-      {props.children}
+        {props.children}
     </OnchainKitProvider>
   );
 }

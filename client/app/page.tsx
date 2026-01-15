@@ -1,13 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { StampCard } from '@/app/components/StampCard';
 import { QRCodeModal } from '@/app/components/QRCodeModal';
 import { mockStampCards } from '@/app/lib/stampCards';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 
 export default function Home() {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const { context, isMiniAppReady, setMiniAppReady } = useMiniKit();
+
+  useEffect(() => {
+    // Signal to the Base mini app host that our app is ready
+    if (!!context && !isMiniAppReady) {
+      setMiniAppReady();
+    }
+  }, [context, isMiniAppReady, setMiniAppReady]);
 
   return (
     <div className="min-h-screen bg-playful">
