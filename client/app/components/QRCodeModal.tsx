@@ -6,9 +6,10 @@ import { QRCode } from './QRCode';
 interface QRCodeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  walletAddress?: string;
 }
 
-export function QRCodeModal({ isOpen, onClose }: QRCodeModalProps) {
+export function QRCodeModal({ isOpen, onClose, walletAddress }: QRCodeModalProps) {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
@@ -50,6 +51,7 @@ export function QRCodeModal({ isOpen, onClose }: QRCodeModalProps) {
         </button>
         
         <QRCode 
+          value={walletAddress}
           title="Scan to Add Stamp" 
           size={240}
         />
