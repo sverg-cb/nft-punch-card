@@ -1,0 +1,13 @@
+{
+    "accountAssociation": {
+      "header": "farcaster-account-association",
+      "payload": "eyJhcHAiOiJORlQgUHVuY2ggQ2FyZCIsInRpbWVzdGFtcCI6MTc2ODQ5OTM4NDg2N30=",
+      "signature": "MHhjYWI3M2MwZjRiYWQyMWMwNDRhMmMzZDJkYWIzNmI0NzBmMzlmZjFjYjU0MGJmMjY3ZTBiM2M0YjYyODBjNTBlNGM2NWRhYzBkZGRiZjcyNGU3NDlmZDlmNTY5ZTA3N2Y1Mzk0Zjg3ODVhODQzN2FiYzRkMzgzZTkyOWViMDBiMzFi"
+    },
+    "miniapp": {
+        "homeUrl": "https://nft-punch-card.vercel.app",
+        "iconUrl": "https://nft-punch-card.vercel.app/icon.png",
+        "splashImageUrl": "https://nft-punch-card.vercel.app/splash.png"
+    }
+}
+  
