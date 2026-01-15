@@ -1,10 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getMerchant, getMerchantUsers, formatAddress } from '@/app/lib/merchants';
 import { QRScanner } from '@/app/components/QRScanner';
+import { 
+  MERCHANT_PUNCH_CARD_ADDRESS, 
+  merchantPunchCardAbi, 
+  generateRandomItemIds 
+} from '@/app/lib/contracts';
+import { 
+  ConnectWallet,
+  Wallet,
+  WalletDropdown,
+  WalletDropdownDisconnect,
+} from '@coinbase/onchainkit/wallet';
+import {
+  Address,
+  Avatar,
+  Name,
+  Identity,
+} from '@coinbase/onchainkit/identity';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 
 export default function MerchantDetailPage() {
   const params = useParams();
@@ -16,6 +34,47 @@ export default function MerchantDetailPage() {
   const [customerAddress, setCustomerAddress] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [pendingItemIds, setPendingItemIds] = useState<bigint[]>([]);
+
+  // Wallet connection
+  const { isConnected } = useAccount();
+  
+  // Contract write hook
+  const { 
+    writeContract, 
+    data: txHash,
+    isPending: isWritePending,
+    error: writeError,
+    reset: resetWrite
+  } = useWriteContract();
+
+  // Wait for transaction confirmation
+  const { 
+    isLoading: isConfirming, 
+    isSuccess: isConfirmed,
+    error: confirmError
+  } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  // Handle transaction confirmation
+  useEffect(() => {
+    if (isConfirmed && txHash) {
+      setSuccessMessage(
+        `Purchase processed! ${pendingItemIds.length} item${pendingItemIds.length > 1 ? 's' : ''} recorded. ` +
+        `Items: [${pendingItemIds.map(id => id.toString()).join(', ')}]`
+      );
+      
+      // Reset after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+        setCustomerAddress('');
+        setStampCount(1);
+        setPendingItemIds([]);
+        resetWrite();
+      }, 5000);
+    }
+  }, [isConfirmed, txHash, pendingItemIds, resetWrite]);
 
   if (!merchant) {
     return (
@@ -31,26 +90,27 @@ export default function MerchantDetailPage() {
     );
   }
 
-  const handleScan = (address: string) => {
-    setCustomerAddress(address);
+  const handleScan = (scannedAddress: string) => {
+    setCustomerAddress(scannedAddress);
     setIsScannerOpen(false);
   };
 
-  const handleSubmit = () => {
-    if (!customerAddress) {
+  const handleSubmit = async () => {
+    if (!customerAddress || !isConnected) {
       return;
     }
     
-    // MVP: Just show success message
-    // Later: Call smart contract to grant stamps
-    setSuccessMessage(`Successfully granted ${stampCount} stamp${stampCount > 1 ? 's' : ''} to ${formatAddress(customerAddress)}`);
+    // Generate random item IDs (1-2 items)
+    const itemIds = generateRandomItemIds();
+    setPendingItemIds(itemIds);
     
-    // Reset after 3 seconds
-    setTimeout(() => {
-      setSuccessMessage('');
-      setCustomerAddress('');
-      setStampCount(1);
-    }, 3000);
+    // Call the smart contract
+    writeContract({
+      address: MERCHANT_PUNCH_CARD_ADDRESS,
+      abi: merchantPunchCardAbi,
+      functionName: 'processPurchase',
+      args: [itemIds],
+    });
   };
 
   const totalUsers = users.length;
@@ -58,20 +118,41 @@ export default function MerchantDetailPage() {
   const completedRewards = users.filter(u => u.isRedeemed).length;
   const totalStampsIssued = users.reduce((sum, u) => sum + u.currentStamps, 0);
 
+  const isProcessing = isWritePending || isConfirming;
+  const error = writeError || confirmError;
+
   return (
     <div className="min-h-screen bg-merchant">
       {/* Header */}
       <header className="pt-8 pb-6 px-6">
         <div className="max-w-4xl mx-auto">
-          <Link 
-            href="/merchants" 
-            className="inline-flex items-center gap-2 text-gray-500 hover:text-primary mb-4 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Merchants
-          </Link>
+          <div className="flex items-center justify-between mb-4">
+            <Link 
+              href="/merchants" 
+              className="inline-flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Merchants
+            </Link>
+            
+            {/* Wallet Connection */}
+            <Wallet>
+              <ConnectWallet>
+                <Avatar className="h-6 w-6" />
+                <Name />
+              </ConnectWallet>
+              <WalletDropdown>
+                <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                  <Avatar />
+                  <Name />
+                  <Address />
+                </Identity>
+                <WalletDropdownDisconnect />
+              </WalletDropdown>
+            </Wallet>
+          </div>
           
           <div className="flex items-center gap-4">
             <div 
@@ -116,26 +197,50 @@ export default function MerchantDetailPage() {
           {/* Grant Stamps Section */}
           <div className="merchant-card p-6">
             <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-              <span>🎟️</span> Grant Stamps
+              <span>🎟️</span> Process Purchase
             </h2>
+
+            {/* Wallet not connected warning */}
+            {!isConnected && (
+              <div className="mb-4 p-4 bg-amber-100 border border-amber-300 rounded-xl text-amber-700 flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                Connect your wallet to process purchases on-chain
+              </div>
+            )}
             
             {successMessage && (
-              <div className="mb-4 p-4 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-xl text-green-700 dark:text-green-300 flex items-center gap-2">
+              <div className="mb-4 p-4 bg-green-100 border border-green-300 rounded-xl text-green-700 flex items-center gap-2">
                 <span className="text-xl">✅</span>
                 {successMessage}
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 p-4 bg-red-100 border border-red-300 rounded-xl text-red-700 flex items-center gap-2">
+                <span className="text-xl">❌</span>
+                <span className="break-all">
+                  {error instanceof Error ? error.message : 'Transaction failed'}
+                </span>
+              </div>
+            )}
+
+            {isProcessing && (
+              <div className="mb-4 p-4 bg-blue-100 border border-blue-300 rounded-xl text-blue-700 flex items-center gap-2">
+                <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+                {isWritePending ? 'Confirm in your wallet...' : 'Processing transaction...'}
               </div>
             )}
 
             <div className="space-y-4">
               {/* Stamp Count Input */}
               <div>
-                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                <label className="block text-sm font-semibold text-gray-600 mb-2">
                   Number of Stamps to Grant
                 </label>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setStampCount(Math.max(1, stampCount - 1))}
-                    className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
                   >
                     −
                   </button>
@@ -143,13 +248,13 @@ export default function MerchantDetailPage() {
                     type="number"
                     value={stampCount}
                     onChange={(e) => setStampCount(Math.max(1, Math.min(merchant.totalStampsRequired, parseInt(e.target.value) || 1)))}
-                    className="w-20 h-12 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-foreground focus:border-primary focus:outline-none"
+                    className="w-20 h-12 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 bg-white text-foreground focus:border-primary focus:outline-none"
                     min="1"
                     max={merchant.totalStampsRequired}
                   />
                   <button
                     onClick={() => setStampCount(Math.min(merchant.totalStampsRequired, stampCount + 1))}
-                    className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
                   >
                     +
                   </button>
@@ -161,7 +266,7 @@ export default function MerchantDetailPage() {
 
               {/* Customer Address */}
               <div>
-                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                <label className="block text-sm font-semibold text-gray-600 mb-2">
                   Customer Wallet Address
                 </label>
                 <div className="flex gap-3">
@@ -170,7 +275,7 @@ export default function MerchantDetailPage() {
                     value={customerAddress}
                     onChange={(e) => setCustomerAddress(e.target.value)}
                     placeholder="0x... or scan QR code"
-                    className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-foreground focus:border-primary focus:outline-none transition-colors"
+                    className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-foreground focus:border-primary focus:outline-none transition-colors"
                   />
                   <button
                     onClick={() => setIsScannerOpen(true)}
@@ -185,14 +290,27 @@ export default function MerchantDetailPage() {
               {/* Submit Button */}
               <button
                 onClick={handleSubmit}
-                disabled={!customerAddress}
+                disabled={!customerAddress || !isConnected || isProcessing}
                 className={`btn-primary w-full flex items-center justify-center gap-2 ${
-                  !customerAddress ? 'opacity-50 cursor-not-allowed' : ''
+                  (!customerAddress || !isConnected || isProcessing) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <span>✨</span>
-                Grant {stampCount} Stamp{stampCount > 1 ? 's' : ''}
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    Process Purchase (1-2 random items)
+                  </>
+                )}
               </button>
+              
+              <p className="text-xs text-gray-500 text-center">
+                This will call processPurchase on the smart contract with 1-2 random item IDs
+              </p>
             </div>
           </div>
 
@@ -211,17 +329,17 @@ export default function MerchantDetailPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-3 px-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-2 text-sm font-semibold text-gray-600">
                         Address
                       </th>
-                      <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">
                         Stamps
                       </th>
-                      <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">
                         Status
                       </th>
-                      <th className="text-right py-3 px-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      <th className="text-right py-3 px-2 text-sm font-semibold text-gray-600">
                         Last Visit
                       </th>
                     </tr>
@@ -230,11 +348,11 @@ export default function MerchantDetailPage() {
                     {users.map((user, index) => (
                       <tr 
                         key={user.address}
-                        className="border-b border-gray-100 dark:border-gray-800 stagger-item"
+                        className="border-b border-gray-100 stagger-item"
                         style={{ animationDelay: `${index * 0.05}s` }}
                       >
                         <td className="py-3 px-2">
-                          <code className="text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                          <code className="text-sm bg-gray-100 px-2 py-1 rounded">
                             {user.displayAddress}
                           </code>
                         </td>
@@ -245,7 +363,7 @@ export default function MerchantDetailPage() {
                             <span className="text-gray-500">{merchant.totalStampsRequired}</span>
                           </div>
                           {/* Mini progress bar */}
-                          <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mt-1">
+                          <div className="w-full h-1.5 bg-gray-200 rounded-full mt-1">
                             <div 
                               className="h-full rounded-full bg-gradient-to-r from-primary to-secondary"
                               style={{ width: `${(user.currentStamps / merchant.totalStampsRequired) * 100}%` }}
@@ -254,15 +372,15 @@ export default function MerchantDetailPage() {
                         </td>
                         <td className="text-center py-3 px-2">
                           {user.isRedeemed ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                               ✓ Redeemed
                             </span>
                           ) : user.currentStamps >= merchant.totalStampsRequired ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
                               🎉 Ready
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
                               ⏳ Collecting
                             </span>
                           )}
@@ -295,6 +413,12 @@ export default function MerchantDetailPage() {
               <div className="md:col-span-2">
                 <span className="text-gray-500">Reward:</span>
                 <span className="ml-2 font-semibold text-foreground">{merchant.rewardDescription}</span>
+              </div>
+              <div className="md:col-span-2">
+                <span className="text-gray-500">Contract:</span>
+                <code className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded">
+                  {MERCHANT_PUNCH_CARD_ADDRESS}
+                </code>
               </div>
             </div>
           </div>

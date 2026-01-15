@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAccount } from 'wagmi';
 import { getStampCard, isCardComplete } from '@/app/lib/stampCards';
 import { QRCode } from '@/app/components/QRCode';
 
@@ -12,6 +13,7 @@ interface StampPageProps {
 export default function StampPage({ params }: StampPageProps) {
   const { id } = params;
   const card = getStampCard(id);
+  const { address, isConnected } = useAccount();
 
   if (!card) {
     return (
@@ -142,10 +144,24 @@ export default function StampPage({ params }: StampPageProps) {
                 <h3 className="text-xl font-bold text-foreground mb-4">
                   Earn Your Next Stamp
                 </h3>
-                <QRCode 
-                  title="Show at checkout" 
-                  size={200}
-                />
+                {isConnected && address ? (
+                  <>
+                    <QRCode 
+                      value={address}
+                      title="Show at checkout" 
+                      size={200}
+                    />
+                    <p className="text-xs text-gray-400 mt-4 max-w-xs">
+                      The merchant will scan this QR code to process your purchase and add stamps to your card
+                    </p>
+                  </>
+                ) : (
+                  <div className="p-6 bg-gray-100 rounded-2xl">
+                    <p className="text-gray-500">
+                      Connect your wallet to generate a QR code
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
