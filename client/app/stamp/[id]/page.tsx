@@ -66,8 +66,17 @@ export default function StampPage({ params }: StampPageProps) {
     return count;
   }, [purchaseHistory]);
 
-  // Use on-chain stamp count if connected, otherwise fall back to mock data
-  const currentStamps = isConnected && address ? onChainStampCount : (card?.currentStamps ?? 0);
+  // Check if card is already complete or redeemed in mock data
+  const mockComplete = card ? card.currentStamps >= card.totalStamps : false;
+  const mockRedeemed = card?.isRedeemed ?? false;
+
+  // For cards that are complete/redeemed in mock data, always use mock data
+  // This allows users to test the spinner without needing real on-chain data
+  // For in-progress cards, use on-chain data when connected
+  const useMockData = mockComplete || mockRedeemed;
+  const currentStamps = useMockData 
+    ? (card?.currentStamps ?? 0)
+    : (isConnected && address ? onChainStampCount : (card?.currentStamps ?? 0));
   const totalStamps = card?.totalStamps ?? 10;
   const isComplete = currentStamps >= totalStamps;
 
@@ -235,11 +244,19 @@ export default function StampPage({ params }: StampPageProps) {
               </div>
             </div>
 
-            {/* On-chain indicator */}
-            {isConnected && address && (
+            {/* On-chain indicator - only show for in-progress cards reading from contract */}
+            {isConnected && address && !useMockData && (
               <div className="mb-4 text-xs text-gray-500 flex items-center justify-center gap-1">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 Reading from contract
+              </div>
+            )}
+            
+            {/* Mock data indicator for complete/redeemed cards */}
+            {useMockData && (
+              <div className="mb-4 text-xs text-gray-400 flex items-center justify-center gap-1">
+                <span className="w-2 h-2 bg-amber-400 rounded-full" />
+                Demo data
               </div>
             )}
 
