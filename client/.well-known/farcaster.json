@@ -1,0 +1,21 @@
+{
+    "accountAssociation": {
+      "header": "farcaster-account-association",
+      "payload": "eyJhcHAiOiJORlQgUHVuY2ggQ2FyZCIsInRpbWVzdGFtcCI6MTc2ODQ5OTM4NDg2N30=",
+      "signature": "MHhjYWI3M2MwZjRiYWQyMWMwNDRhMmMzZDJkYWIzNmI0NzBmMzlmZjFjYjU0MGJmMjY3ZTBiM2M0YjYyODBjNTBlNGM2NWRhYzBkZGRiZjcyNGU3NDlmZDlmNTY5ZTA3N2Y1Mzk0Zjg3ODVhODQzN2FiYzRkMzgzZTkyOWViMDBiMzFi"
+    },
+    "miniapp": {
+        "version": "1",
+        "name": "Revolution Rewards",
+        "iconUrl": "https://nft-punch-card.vercel.app/icon.png",
+        "homeUrl": "https://nft-punch-card.vercel.app",
+        "splashImageUrl": "https://nft-punch-card.vercel.app/splash.png",
+        "splashBackgroundColor": "#2d1b4e",
+        "heroImageUrl": "https://nft-punch-card.vercel.app/hero.png",
+        "tagline": "Collect stamps! Unlock rewards from your favorite places!",
+        "primaryCategory": "shopping",
+        "tags": ["rewards", "loyalty", "nft", "punch card"],
+        "screenshotUrls": ["https://nft-punch-card.vercel.app/screenshot.png"]
+    }
+}
+  
